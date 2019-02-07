@@ -28,6 +28,8 @@ const InlinePass = Cassette.@pass transform
 Cassette.@context CUDACtx
 const cudactx = Cassette.disablehooks(CUDACtx(pass = InlinePass))
 
+Cassette.overdub(::CUDACtx, ::typeof(datatype_align), ::Type{T}) where {T} = datatype_align(T) 
+
 # libdevice.jl
 for f in (:cos, :cospi, :sin, :sinpi, :tan,
           :acos, :asin, :atan, 
