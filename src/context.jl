@@ -16,24 +16,41 @@
 using Cassette
 
 function transform(ctx, ref)
-    ci = ref.code_info
-    noinline = any(@nospecialize(x) -> Core.Compiler.isexpr(x, :meta) && x.args[1] == :noinline, ci.code)
-    if !noinline
-        ci.inlineable = true
-    end
-    return ci
+    CI = ref.code_info
+    noinline = any(@nospecialize(x) ->
+                       Core.Compiler.isexpr(x, :meta) &&
+                       x.args[1] == :noinline,
+                   CI.code)
+    CI.inlineable = !noinline
+
+    return CI
 end
+
 const InlinePass = Cassette.@pass transform
 
 Cassette.@context CUDACtx
 const cudactx = Cassette.disablehooks(CUDACtx(pass = InlinePass))
 
-# kwfunc fix
-function Cassette.overdub(ctx::CUDACtx, ::typeof(Core.kwfunc), f)
-    return Core.kwfunc(f)
-end
+###
+# Cassette fixes
+###
 
-Cassette.overdub(::CUDACtx, ::typeof(datatype_align), ::Type{T}) where {T} = datatype_align(T) 
+# kwfunc fix
+Cassette.overdub(::CUDACtx, ::typeof(Core.kwfunc), f) = return Core.kwfunc(f)
+
+# the functions below are marked `@pure` and by rewritting them we hide that from
+# inference so we leave them alone (see https://github.com/jrevels/Cassette.jl/issues/108).
+@inline Cassette.overdub(::CUDACtx, ::typeof(Base.isimmutable), x)     = return Base.isimmutable(x)
+@inline Cassette.overdub(::CUDACtx, ::typeof(Base.isstructtype), t)    = return Base.isstructtype(t)
+@inline Cassette.overdub(::CUDACtx, ::typeof(Base.isprimitivetype), t) = return Base.isprimitivetype(t)
+@inline Cassette.overdub(::CUDACtx, ::typeof(Base.isbitstype), t)      = return Base.isbitstype(t)
+@inline Cassette.overdub(::CUDACtx, ::typeof(Base.isbits), x)          = return Base.isbits(x)
+
+@inline Cassette.overdub(::CUDACtx, ::typeof(datatype_align), ::Type{T}) where {T} = datatype_align(T) 
+
+###
+# Rewrite functions
+###
 
 # libdevice.jl
 for f in (:cos, :cospi, :sin, :sinpi, :tan,
