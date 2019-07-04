@@ -172,7 +172,7 @@ function promote_kernel!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Funct
         LLVM.API.LLVMModuleFlagBehaviorWarning,
         key,
         length(key),
-        LLVM.ref(LLVM.Metadata(LLVM.ConstantInt(2)))
+        LLVM.ref(LLVM.Metadata(LLVM.ConstantInt(Int32(2))))
     )
 
 
@@ -214,19 +214,23 @@ function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
-    let dibuilder = DIBuilder(mod)
-        cu = DICompileUnit(@__FILE__, @__DIR__, LLVM.API.LLVMDWARFSourceLanguageJulia, "CUDAnative", "", false, 1)
-        scope = LLVM.compileunit!(dibuilder, cu)
-        file = LLVM.file!(dibuilder, @__FILE__, @__DIR__)
-        DIVoid = LLVM.basictype!(dibuilder, "void", 0, 0)
-        type = LLVM.subroutinetype!(dibuilder, file,  DIVoid)
-        di_f = DIFunction(wrapper_fn, wrapper_fn, file, @__LINE__,
-                   type, false, true, @__LINE__, LLVM.API.LLVMDIFlagPrototyped, false)
-        SP = LLVM.subprogram!(dibuilder, scope, di_f)
-        LLVM.set_subprogram!(wrapper_f, SP)
-        finalize(dibuilder)
-        dispose(dibuilder)
-    end
+    # let dibuilder = DIBuilder(mod)
+    #     cu = DICompileUnit(@__FILE__, @__DIR__, LLVM.API.LLVMDWARFSourceLanguageJulia, "CUDAnative", "", false, 1)
+    #     scope = LLVM.compileunit!(dibuilder, cu)
+    #     file = LLVM.file!(dibuilder, @__FILE__, @__DIR__)
+    #     DIVoid = LLVM.basictype!(dibuilder, "void", 0, 0)
+    #     type = LLVM.subroutinetype!(dibuilder, file,  DIVoid)
+    #     di_f = DIFunction(wrapper_fn, wrapper_fn, file, @__LINE__,
+    #                type, false, true, @__LINE__, LLVM.API.LLVMDIFlagPrototyped, false)
+    #     SP = LLVM.subprogram!(dibuilder, scope, di_f)
+    #     LLVM.set_subprogram!(wrapper_f, SP)
+    #     finalize(dibuilder)
+    #     dispose(dibuilder)
+    # end
+
+    # Get debuginfo from the entry_f and copy it to the wrapper_f
+    SP = LLVM.get_subprogram(entry_f)
+    LLVM.set_subprogram!(wrapper_f, SP)
 
     # emit IR performing the "conversions"
     let builder = Builder(JuliaContext())
